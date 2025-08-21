@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soccer Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior-y: contain;
+            background-color: #000000; /* Black background for contrast */
+        }
+        .tab-active i {
+            color: #3b82f6; /* Blue-500 */
+        }
+        .tab-active span {
+            color: #e5e7eb; /* Gray-200 */
+        }
+        .timeline-item::before {
+            content: ''; position: absolute; left: 1.25rem; top: 1.25rem;
+            bottom: -1.25rem; width: 2px;
+            background-image: linear-gradient(to bottom, #374151, #1f2937);
+            transform: translateX(-50%);
+        }
+        .timeline-item:last-child::before { display: none; }
+        .timeline-dot {
+            position: absolute; left: 1.25rem; top: 1.25rem;
+            transform: translate(-50%, -50%);
+            border: 3px solid #111827; /* gray-900 */
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        .chat-bubble-user { background-color: #374151; color: white; }
+        .chat-bubble-ai { background-color: #1d4ed8; color: white; }
+        
+        /* Pitch and Player Styles for Tactics Board */
+        .pitch {
+            background-color: #166534; /* green-800 */
+            border: 2px solid #4b5563; /* gray-600 */
+            position: relative;
+            width: 100%;
+            aspect-ratio: 7 / 5;
+        }
+        .centre-circle {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 25%; height: 35%;
+            border: 2px solid #4b5563;
+            border-radius: 50%;
+        }
+        .halfway-line {
+            position: absolute; top: 0; left: 50%;
+            transform: translateX(-50%);
+            width: 2px; height: 100%;
+            background-color: #4b5563;
+        }
+        .penalty-box {
+            position: absolute; top: 50%;
+            transform: translateY(-50%);
+            width: 20%; height: 50%;
+            border: 2px solid #4b5563;
+        }
+        .penalty-box.left { left: 0; }
+        .penalty-box.right { right: 0; }
+        .player-marker {
+            position: absolute;
+            width: 2.5rem; height: 2.5rem;
+            border-radius: 50%;
+            background-color: #facc15; /* yellow-400 */
+            color: #1f2937;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.75rem;
+            cursor: pointer;
+            border: 2px solid #111827;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            transition: all 0.2s ease;
+            transform: translate(-50%, -50%);
+        }
+        .player-marker.selected {
+            background-color: #ef4444; /* red-500 */
+            color: white;
+            transform: translate(-50%, -50%) scale(1.15);
+            z-index: 10;
+            box-shadow: 0 0 15px #ef4444;
+        }
+    </style>
+</head>
+<body class="text-gray-300">
+
+    <!-- Main Application Container -->
+    <div id="app" class="h-screen flex flex-col bg-gray-900">
+
+        <!-- Position Selection Screen -->
+        <div id="position-selection" class="flex flex-col items-center justify-center h-full p-8 text-center max-w-md md:max-w-2xl lg:max-w-3xl mx-auto w-full">
+            <h1 class="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 mb-4">Welcome to Soccer Pro</h1>
+            <p class="text-gray-400 mb-10 text-lg">Choose your position to begin.</p>
+            <div class="grid grid-cols-2 gap-5 w-full">
+                <button onclick="selectPosition('Forward')" class="bg-gray-800/50 border border-gray-700 hover:border-blue-500 hover:bg-gray-800/80 transition-all duration-300 text-white font-semibold py-8 rounded-xl text-lg flex flex-col items-center justify-center"><i data-lucide="target" class="mb-2 h-8 w-8 text-blue-400"></i>Forward</button>
+                <button onclick="selectPosition('Midfielder')" class="bg-gray-800/50 border border-gray-700 hover:border-blue-500 hover:bg-gray-800/80 transition-all duration-300 text-white font-semibold py-8 rounded-xl text-lg flex flex-col items-center justify-center"><i data-lucide="compass" class="mb-2 h-8 w-8 text-blue-400"></i>Midfielder</button>
+                <button onclick="selectPosition('Defender')" class="bg-gray-800/50 border border-gray-700 hover:border-blue-500 hover:bg-gray-800/80 transition-all duration-300 text-white font-semibold py-8 rounded-xl text-lg flex flex-col items-center justify-center"><i data-lucide="shield" class="mb-2 h-8 w-8 text-blue-400"></i>Defender</button>
+                <button onclick="selectPosition('Goalkeeper')" class="bg-gray-800/50 border border-gray-700 hover:border-blue-500 hover:bg-gray-800/80 transition-all duration-300 text-white font-semibold py-8 rounded-xl text-lg flex flex-col items-center justify-center"><i data-lucide="hand" class="mb-2 h-8 w-8 text-blue-400"></i>Goalkeeper</button>
+            </div>
+        </div>
+
+        <!-- Main Dashboard (Hidden by default) -->
+        <div id="dashboard" class="hidden flex-1 flex-col max-w-md md:max-w-2xl lg:max-w-4xl mx-auto w-full bg-gray-900 shadow-2xl h-full">
+            <header class="bg-gray-900/80 backdrop-blur-sm p-4 flex justify-between items-center border-b border-gray-800 sticky top-0 z-20">
+                <div><p class="text-sm text-gray-400">Position</p><h2 id="user-position" class="text-lg font-bold text-gray-100"></h2></div>
+                <div class="text-center"><p class="text-sm text-gray-400">XP</p><h2 id="user-xp" class="text-lg font-bold text-gray-100">0</h2></div>
+                <div class="text-right"><p class="text-sm text-gray-400">Streak</p><h2 id="user-streak" class="text-lg font-bold text-gray-100">🔥 0</h2></div>
+            </header>
+
+            <main id="main-content" class="flex-1 overflow-y-auto p-4 pb-24"></main>
+
+            <nav class="bg-gray-900/80 backdrop-blur-sm p-2 fixed bottom-0 w-full max-w-md md:max-w-2xl lg:max-w-4xl border-t border-gray-800 z-20">
+                <div class="flex justify-around">
+                    <button onclick="showTab('lessons')" class="tab-button tab-active flex flex-col items-center text-gray-400 w-1/4 py-1 transition-all duration-200"><i data-lucide="award"></i><span class="text-xs mt-1">Lessons</span></button>
+                    <button onclick="showTab('training')" class="tab-button flex flex-col items-center text-gray-400 w-1/4 py-1 transition-all duration-200"><i data-lucide="dribbble"></i><span class="text-xs mt-1">Training</span></button>
+                    <button onclick="showTab('performance')" class="tab-button flex flex-col items-center text-gray-400 w-1/4 py-1 transition-all duration-200"><i data-lucide="bar-chart-2"></i><span class="text-xs mt-1">Performance</span></button>
+                    <button onclick="showTab('profile')" class="tab-button flex flex-col items-center text-gray-400 w-1/4 py-1 transition-all duration-200"><i data-lucide="user"></i><span class="text-xs mt-1">Profile</span></button>
+                </div>
+            </nav>
+        </div>
+
+        <!-- Generic Modal/Overlay -->
+        <div id="modal-overlay" class="hidden fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4">
+            <div id="modal-content" class="bg-gray-800 border border-gray-700 p-6 rounded-lg w-full max-w-sm relative">
+                <!-- Content will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        
+        // --- GEMINI API INTEGRATION ---
+        const apiKey = ""; // IMPORTANT: Leave this empty.
+
+        async function callGemini(prompt, isJson = false) {
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            let payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+            if (isJson) {
+                payload.generationConfig = { responseMimeType: "application/json" };
+            }
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error(`API call failed: ${response.status}`);
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0) {
+                    return result.candidates[0].content.parts[0].text;
+                }
+                throw new Error("No content received from API.");
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                return "Sorry, the AI is unavailable right now. Please try again later.";
+            }
+        }
+
+        // --- APPLICATION STATE & LOCALSTORAGE ---
+        let state = {
+            user: {
+                position: null, xp: 0, streak: 0, lastCompletedDate: null,
+                completedDrills: [], unlockedAchievements: [], matchLogs: [],
+            },
+            currentTab: 'lessons', activeDrill: null, isTimerPaused: false,
+            currentFormation: '4-4-2', currentTacticPosition: null,
+            chatHistories: {
+                aiCoach: [{ role: 'ai', text: "Alright, champ! I'm Coach Pro. What's on your mind? Let's get you match-fit." }],
+                aiStrength: [], aiNutrition: [], aiTactician: []
+            }
+        };
+
+        // --- DATABASE ---
+        const db = {
+            drills: {
+                'Dribbling & Control': [
+                    { name: 'Foundation Dribbling', id: 'd1', description: 'Dribble in a 10x10 yard square using both feet. Focus on keeping the ball close and your head up.', duration: 120, xp: 10, positions: ['all'] },
+                    { name: 'Cone Weave', id: 'dc1', description: 'Set up 5 cones in a line and weave through them using inside and outside of both feet.', duration: 180, xp: 10, positions: ['all'] },
+                    { name: 'Stop-Start Sprints', id: 'dc2', description: 'Dribble at pace for 10 yards, stop the ball dead, then explode again. Repeat 10 times.', duration: 240, xp: 15, positions: ['Forward', 'Midfielder'] },
+                    { name: 'Tight Space Control', id: 'dc3', description: 'In a 5x5 yard box, keep the ball moving constantly with small, quick touches. Try to use all surfaces of your feet.', duration: 300, xp: 15, positions: ['Midfielder', 'Forward'] },
+                ],
+                'Passing & Receiving': [
+                    { name: 'Wall Passing', id: 'd2', description: 'Pass the ball against a wall, alternating feet. Focus on first touch and accuracy.', duration: 180, xp: 10, positions: ['all'] },
+                    { name: 'First Touch Away', id: 'pr1', description: 'Pass against a wall and take your first touch into space to your left or right, away from an imaginary defender.', duration: 240, xp: 10, positions: ['all'] },
+                    { name: 'Long Passing Accuracy', id: 'm1', description: 'Practice switching the play with long passes to a target area (e.g., a cone or bag) 30-40 yards away.', duration: 300, xp: 15, positions: ['Midfielder', 'Defender'] },
+                    { name: 'Receive on the Half-Turn', id: 'm2', description: 'As you receive a pass (from a wall), open your body to face forward, taking the ball with your back foot.', duration: 240, xp: 15, positions: ['Midfielder', 'Forward'] },
+                ],
+                'Shooting & Finishing': [
+                    { name: 'Shooting Practice', id: 'f1', description: 'Take 20 shots from the edge of the box. Focus on hitting the corners with power and placement.', duration: 300, xp: 10, positions: ['Forward', 'Midfielder'] },
+                    { name: 'Finishing Under Pressure', id: 'f2', description: 'Receive a pass, turn, and shoot within two touches while a cone represents a defender.', duration: 300, xp: 15, positions: ['Forward'] },
+                    { name: 'Volleys and Half-Volleys', id: 'sf1', description: 'Toss the ball up for yourself and strike it on the volley or just after it bounces. Focus on timing and clean contact.', duration: 240, xp: 15, positions: ['Forward', 'Midfielder'] },
+                ],
+                'Defending': [
+                    { name: '1v1 Defending', id: 'def1', description: 'Practice jockeying (staying low, side-on) and timing your tackles against an imaginary attacker in a channel.', duration: 240, xp: 15, positions: ['Defender', 'Midfielder'] },
+                    { name: 'Heading Clearences', id: 'def2', description: 'Throw a ball in the air and practice heading it for distance and height. Attack the ball.', duration: 180, xp: 10, positions: ['Defender'] },
+                    { name: 'Recovery Runs', id: 'def3', description: 'Start facing away from a cone 20 yards away. On a signal, turn and sprint back to the cone as if tracking a runner.', duration: 300, xp: 15, positions: ['Defender', 'Midfielder'] },
+                ],
+                'Goalkeeping': [
+                    { name: 'Handling and Footwork', id: 'g1', description: 'Practice basic handling (W-shape) and quick feet movement along the goal line.', duration: 240, xp: 10, positions: ['Goalkeeper'] },
+                    { name: 'Shot Stopping', id: 'g2', description: 'Have a friend take shots from various angles or kick a ball against a wall and react to the rebound.', duration: 300, xp: 15, positions: ['Goalkeeper'] },
+                    { name: 'Distribution', id: 'g3', description: 'Practice throwing (overarm and underarm) and kicking (goal kicks, punts) to specific targets downfield.', duration: 240, xp: 10, positions: ['Goalkeeper'] },
+                ]
+            },
+            skills: [
+                { name: "Stepover", url: "https://www.youtube.com/watch?v=y1UJrlWu7J8" }, { name: "Body Feint", url: "https://www.youtube.com/watch?v=N-HbFSguyjk" },
+                { name: "La Croqueta", url: "https://www.youtube.com/watch?v=LYaNYO87j_U" }, { name: "Cruyff Turn", url: "https://www.youtube.com/watch?v=LRSUw7mgqAY" },
+                { name: "Maradona Spin", url: "https://www.youtube.com/watch?v=BqZfsuMw9r0" }, { name: "Ball Roll", url: "https://www.youtube.com/watch?v=a9m4TVuvNbE" },
+                { name: "Stop and Go", url: "https://www.youtube.com/watch?v=-W4CSIntI6E" }, { name: "Elastico", url: "https://www.youtube.com/watch?v=1_D_U-T8b_M" },
+                { name: "Reverse Elastico", url: "https://www.youtube.com/watch?v=czbL-1R86nw" }, { name: "Nutmeg", url: "https://www.youtube.com/watch?v=JBUkqdsaidc" },
+                { name: "The V-Pull", url: "https://www.youtube.com/watch?v=uCz9FZu-GCw" }, { name: "Scoop Turn", url: "https://www.youtube.com/watch?v=EHk635lx5A4" },
+                { name: "Bolasie Flick", url: "https://www.youtube.com/watch?v=kLVUsoCjVE4" }, { name: "McGeady Spin", url: "https://www.youtube.com/watch?v=qIB76HqVaHE" },
+                { name: "Sombrero Flick", url: "https://www.youtube.com/watch?v=wNmz-b23g5k" }, { name: "Rabona", url: "https://www.youtube.com/watch?v=NpcDYBSHEcY" },
+                { name: "Hocus Pocus", url: "https://www.youtube.com/watch?v=qmrEKVVun10" }, { name: "Around the World", url: "https://www.youtube.com/watch?v=KbSVHJ1ZLbg" },
+                { name: "Akka 3000", url: "https://www.youtube.com/watch?v=zeHHCVgVCcY" },
+            ],
+            mentalScripts: {
+                Forward: [
+                    { title: "The Decisive Moment", prompt: "Picture the ball at your feet, top of the box, 90th minute. What's your move? See the net bulge." },
+                    { title: "The Perfect Run", prompt: "The defender's eyes are elsewhere. Visualize the gap, the explosive sprint, and the perfect through-ball meeting your stride." },
+                    { title: "Pressing Trap", prompt: "The keeper has the ball. See the lazy pass, anticipate it, and turn their mistake into your glory." }
+                ],
+                Midfielder: [
+                    { title: "The Vision", prompt: "Ball at your feet, head up. See the whole pitch like a map. Where's the game-changing pass nobody else sees?" },
+                    { title: "The Engine", prompt: "It's late in the game, legs are heavy. Visualize yourself making that crucial recovery run, winning the ball back, and starting the attack." },
+                    { title: "Escaping Pressure", prompt: "Two players closing you down. Feel the turn, the drop of the shoulder, the burst of space you create. You're in control." }
+                ],
+                Defender: [
+                    { title: "The Unbeatable Wall", prompt: "A fast winger is running at you. See yourself perfectly positioned, patient, forcing them wide. The tackle is clean and decisive." },
+                    { title: "The Last-Ditch Tackle", prompt: "The striker is through on goal. Visualize your recovery speed, the perfectly timed slide, the ball safely cleared." },
+                    { title: "Commanding Header", prompt: "A cross is coming in. See yourself rising above everyone, powerful header, danger cleared. You own the box." }
+                ],
+                Goalkeeper: [
+                    { title: "The Impossible Save", prompt: "Top corner shot. See your explosive dive, fingertips stretching, pushing the ball wide. The crowd roars." },
+                    { title: "Commanding the Box", prompt: "A high corner kick under pressure. Visualize your strong voice, your decisive movement to claim the ball and relieve the pressure." },
+                    { title: "The Perfect Distribution", prompt: "You've made the save. Now, see the quick-thinking throw or kick that launches a devastating counter-attack." }
+                ]
+            },
+            formations: {
+                '4-4-2': {GK: {t:5,l:5}, LB:{t:20,l:25}, LCB:{t:35,l:25}, RCB:{t:65,l:25}, RB:{t:80,l:25}, LM:{t:20,l:50}, LCM:{t:40,l:50}, RCM:{t:60,l:50}, RM:{t:80,l:50}, LS:{t:35,l:75}, RS:{t:65,l:75}},
+                '4-3-3': {GK: {t:5,l:5}, LB:{t:15,l:25}, LCB:{t:40,l:25}, RCB:{t:60,l:25}, RB:{t:85,l:25}, LCM:{t:30,l:50}, CDM:{t:50,l:45}, RCM:{t:70,l:50}, LW:{t:20,l:75}, ST:{t:50,l:80}, RW:{t:80,l:75}},
+                '3-5-2': {GK: {t:5,l:5}, LCB:{t:30,l:20}, CB:{t:50,l:15}, RCB:{t:70,l:20}, LWB:{t:15,l:45}, LCM:{t:40,l:50}, RCM:{t:60,l:50}, RWB:{t:85,l:45}, CAM:{t:50,l:65}, LS:{t:35,l:80}, RS:{t:65,l:80}},
+                '4-2-3-1': {GK: {t:5,l:5}, LB:{t:15,l:25}, LCB:{t:40,l:25}, RCB:{t:60,l:25}, RB:{t:85,l:25}, LDM:{t:35,l:45}, RDM:{t:65,l:45}, LAM:{t:20,l:65}, CAM:{t:50,l:65}, RAM:{t:80,l:65}, ST:{t:50,l:85}},
+                '5-3-2': {GK: {t:5,l:5}, LWB:{t:15,l:35}, LCB:{t:30,l:20}, CB:{t:50,l:15}, RCB:{t:70,l:20}, RWB:{t:85,l:35}, LCM:{t:35,l:55}, CM:{t:50,l:50}, RCM:{t:65,l:55}, LS:{t:35,l:75}, RS:{t:65,l:75}},
+                '4-1-4-1': {GK:{t:5,l:5}, LB:{t:15,l:30}, LCB:{t:40,l:25}, RCB:{t:60,l:25}, RB:{t:85,l:30}, CDM:{t:50,l:40}, LM:{t:20,l:60}, LCM:{t:40,l:60}, RCM:{t:60,l:60}, RM:{t:80,l:60}, ST:{t:50,l:85}},
+                '3-4-3': {GK:{t:5,l:5}, LCB:{t:30,l:20}, CB:{t:50,l:15}, RCB:{t:70,l:20}, LM:{t:20,l:50}, LCM:{t:40,l:50}, RCM:{t:60,l:50}, RM:{t:80,l:50}, LW:{t:25,l:80}, ST:{t:50,l:85}, RW:{t:75,l:80}},
+                '4-5-1': {GK:{t:5,l:5}, LB:{t:15,l:30}, LCB:{t:40,l:25}, RCB:{t:60,l:25}, RB:{t:85,l:30}, LM:{t:15,l:55}, LCM:{t:35,l:55}, CM:{t:50,l:50}, RCM:{t:65,l:55}, RM:{t:85,l:55}, ST:{t:50,l:85}},
+                '5-4-1': {GK:{t:5,l:5}, LWB:{t:15,l:35}, LCB:{t:30,l:20}, CB:{t:50,l:15}, RCB:{t:70,l:20}, RWB:{t:85,l:35}, LM:{t:25,l:60}, LCM:{t:45,l:60}, RCM:{t:65,l:60}, RM:{t:85,l:60}, ST:{t:50,l:85}},
+                '4-1-3-2': {GK:{t:5,l:5}, LB:{t:15,l:25}, LCB:{t:40,l:25}, RCB:{t:60,l:25}, RB:{t:85,l:25}, CDM:{t:50,l:40}, LM:{t:20,l:60}, CAM:{t:50,l:65}, RM:{t:80,l:60}, LS:{t:35,l:85}, RS:{t:65,l:85}},
+                '4-3-2-1': {GK:{t:5,l:5}, LB:{t:15,l:25}, LCB:{t:40,l:25}, RCB:{t:60,l:25}, RB:{t:85,l:25}, LCM:{t:35,l:50}, CM:{t:50,l:45}, RCM:{t:65,l:50}, LF:{t:35,l:75}, RF:{t:65,l:75}, ST:{t:50,l:85}},
+                '3-6-1': {GK:{t:5,l:5}, LCB:{t:30,l:20}, CB:{t:50,l:15}, RCB:{t:70,l:20}, LWB:{t:15,l:45}, LDM:{t:35,l:45}, RDM:{t:65,l:45}, RWB:{t:85,l:45}, LAM:{t:40,l:65}, RAM:{t:60,l:65}, ST:{t:50,l:85}},
+                '4-2-4': {GK:{t:5,l:5}, LB:{t:15,l:25}, LCB:{t:40,l:25}, RCB:{t:60,l:25}, RB:{t:85,l:25}, LCM:{t:40,l:50}, RCM:{t:60,l:50}, LW:{t:15,l:75}, LS:{t:40,l:80}, RS:{t:60,l:80}, RW:{t:85,l:75}},
+                '4-2-2-2': {GK:{t:5,l:5}, LB:{t:15,l:25}, LCB:{t:40,l:25}, RCB:{t:60,l:25}, RB:{t:85,l:25}, LDM:{t:35,l:45}, RDM:{t:65,l:45}, LAM:{t:30,l:70}, RAM:{t:70,l:70}, LS:{t:40,l:85}, RS:{t:60,l:85}},
+                '3-3-1-3': {GK:{t:5,l:5}, LCB:{t:30,l:20}, CB:{t:50,l:15}, RCB:{t:70,l:20}, LDM:{t:30,l:40}, CDM:{t:50,l:35}, RDM:{t:70,l:40}, CAM:{t:50,l:60}, LW:{t:25,l:80}, ST:{t:50,l:85}, RW:{t:75,l:80}},
+            },
+            achievements: {
+                'first_drill': { name: 'First Step', description: 'Complete your first drill.' }, 'five_drills': { name: 'Getting Started', description: 'Complete 5 drills.' },
+                'streak_3': { name: 'On Fire!', description: 'Maintain a 3-day streak.' }, 'streak_7': { name: 'Consistency is Key', description: 'Maintain a 7-day streak.' },
+            }
+        };
+
+        function saveState() { localStorage.setItem('soccerProState', JSON.stringify(state)); }
+        function loadState() {
+            const savedState = localStorage.getItem('soccerProState');
+            if (savedState) {
+                const loaded = JSON.parse(savedState);
+                state = {...state, ...loaded, user: {...state.user, ...loaded.user}, chatHistories: {...state.chatHistories, ...loaded.chatHistories}};
+            }
+        }
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadState();
+            if (state.user.position) {
+                const dashboard = document.getElementById('dashboard');
+                document.getElementById('position-selection').classList.add('hidden');
+                dashboard.classList.remove('hidden');
+                dashboard.classList.add('flex');
+                updateHeader();
+                showTab(state.currentTab);
+            } else {
+                lucide.createIcons();
+            }
+        });
+
+        function selectPosition(position) {
+            state.user.position = position;
+            saveState();
+            const dashboard = document.getElementById('dashboard');
+            document.getElementById('position-selection').classList.add('hidden');
+            dashboard.classList.remove('hidden');
+            dashboard.classList.add('flex');
+            updateHeader();
+            showTab('lessons');
+        }
+
+        function updateHeader() {
+            document.getElementById('user-position').textContent = state.user.position;
+            document.getElementById('user-xp').textContent = state.user.xp;
+            document.getElementById('user-streak').innerHTML = `🔥 ${state.user.streak}`;
+        }
+        
+        // --- MODAL & OVERLAY ---
+        function showModal(content) {
+            document.getElementById('modal-content').innerHTML = content;
+            document.getElementById('modal-overlay').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+            document.getElementById('modal-content').innerHTML = '';
+        }
+
+        // --- NAVIGATION & TABS ---
+        function showTab(tabName) {
+            state.currentTab = tabName;
+            const mainContent = document.getElementById('main-content');
+            mainContent.innerHTML = ''; 
+            document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('tab-active'));
+            document.querySelector(`button[onclick="showTab('${tabName}')"]`).classList.add('tab-active');
+
+            const renderers = { lessons: renderLessonsTab, training: renderTrainingTab, performance: renderPerformanceTab, profile: renderProfileTab };
+            renderers[tabName](mainContent);
+            lucide.createIcons();
+        }
+
+        // --- LESSONS & DRILLS ---
+        function renderLessonsTab(container) {
+            const allDrills = Object.values(db.drills).flat();
+            const positionDrills = allDrills.filter(d => d.positions.includes(state.user.position) || d.positions.includes('all'));
+            
+            let content = `<h1 class="text-3xl font-bold mb-6 text-gray-100">Your Path</h1><div class="relative pl-5">`;
+            let unlocked = true;
+            positionDrills.forEach(drill => {
+                const isCompleted = state.user.completedDrills.includes(drill.id);
+                const isLocked = !unlocked;
+                let dotClass = isCompleted ? 'bg-emerald-500' : (isLocked ? 'bg-gray-600' : 'bg-blue-500 animate-pulse');
+                let buttonHtml = isCompleted ? `<div class="flex items-center text-emerald-400"><i data-lucide="check-circle-2" class="mr-2"></i> Completed</div>`
+                               : isLocked ? `<button disabled class="bg-gray-700 text-gray-500 font-bold py-2 px-4 rounded-lg text-sm">Locked</button>`
+                               : `<button onclick="startDrill('${drill.name}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors">Start</button>`;
+                content += `<div class="timeline-item mb-10 pl-8 relative"><div class="timeline-dot w-5 h-5 rounded-full ${dotClass}"></div><div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg"><div class="flex justify-between items-center"><div><h3 class="font-bold text-lg text-gray-100">${drill.name}</h3><p class="text-sm text-gray-400">+${drill.xp} XP</p></div>${buttonHtml}</div></div></div>`;
+                if (!isCompleted) unlocked = false;
+            });
+            container.innerHTML = content + `</div>`;
+        }
+
+        let drillTimerInterval;
+        let timeLeft;
+        function startDrill(drillName) {
+            state.activeDrill = drillName;
+            state.isTimerPaused = false;
+            const allDrills = Object.values(db.drills).flat();
+            const drill = allDrills.find(d => d.name === drillName);
+            
+            const content = `
+                <h2 id="drill-title" class="text-2xl font-bold mb-4 text-center">${drillName}</h2>
+                <p id="drill-description" class="text-gray-400 mb-6 text-center">${drill.description}</p>
+                <div id="drill-timer" class="text-6xl font-mono text-blue-400 mb-6 text-center"></div>
+                <div id="timer-controls" class="flex justify-center gap-4 mb-4">
+                    <button id="pause-resume-btn" onclick="toggleTimer()" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-6 rounded-lg transition-colors">Pause</button>
+                </div>
+                <button id="complete-drill-btn" onclick="completeDrill()" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-6 rounded-lg w-full transition-colors">Complete Drill</button>
+                <button onclick="closeDrillOverlay()" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><i data-lucide="x" class="w-8 h-8"></i></button>`;
+            showModal(content);
+            lucide.createIcons();
+            
+            timeLeft = drill.duration;
+            runTimer();
+        }
+        
+        function runTimer() {
+            const timerEl = document.getElementById('drill-timer');
+            const updateTimer = () => {
+                const minutes = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+                const seconds = (timeLeft % 60).toString().padStart(2, '0');
+                if(timerEl) timerEl.textContent = `${minutes}:${seconds}`;
+            };
+            updateTimer(); // Initial display
+            
+            drillTimerInterval = setInterval(() => {
+                if (!state.isTimerPaused) {
+                    timeLeft--;
+                    updateTimer();
+                    if (timeLeft <= 0) {
+                        clearInterval(drillTimerInterval);
+                        const completeBtn = document.getElementById('complete-drill-btn');
+                        if(completeBtn) completeBtn.classList.remove('hidden');
+                        document.getElementById('timer-controls').classList.add('hidden');
+                    }
+                }
+            }, 1000);
+        }
+
+        function toggleTimer() {
+            state.isTimerPaused = !state.isTimerPaused;
+            const btn = document.getElementById('pause-resume-btn');
+            if (btn) btn.textContent = state.isTimerPaused ? 'Resume' : 'Pause';
+        }
+
+        function closeDrillOverlay() {
+            clearInterval(drillTimerInterval);
+            state.activeDrill = null;
+            closeModal();
+        }
+
+        function completeDrill() {
+            const allDrills = Object.values(db.drills).flat();
+            const drill = allDrills.find(d => d.name === state.activeDrill);
+            if (!state.user.completedDrills.includes(drill.id)) {
+                state.user.completedDrills.push(drill.id);
+                state.user.xp += drill.xp;
+                const today = new Date().toDateString();
+                if (state.user.lastCompletedDate !== today) {
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    state.user.streak = (state.user.lastCompletedDate === yesterday.toDateString()) ? state.user.streak + 1 : 1;
+                    state.user.lastCompletedDate = today;
+                }
+                checkAchievements();
+                saveState();
+                updateHeader();
+                closeDrillOverlay();
+                showTab('lessons');
+            }
+        }
+        
+        function checkAchievements() {
+            const completedCount = state.user.completedDrills.length;
+            if (completedCount >= 1 && !state.user.unlockedAchievements.includes('first_drill')) unlockAchievement('first_drill');
+            if (completedCount >= 5 && !state.user.unlockedAchievements.includes('five_drills')) unlockAchievement('five_drills');
+            if (state.user.streak >= 3 && !state.user.unlockedAchievements.includes('streak_3')) unlockAchievement('streak_3');
+            if (state.user.streak >= 7 && !state.user.unlockedAchievements.includes('streak_7')) unlockAchievement('streak_7');
+        }
+
+        function unlockAchievement(id) {
+            state.user.unlockedAchievements.push(id);
+            const achievement = db.achievements[id];
+            const toast = document.getElementById('achievement-toast');
+            document.getElementById('achievement-name').textContent = `Achievement: ${achievement.name}`;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        // --- TRAINING TAB & SUB-TABS ---
+        function renderTrainingTab(container) {
+             container.innerHTML = `<h1 class="text-3xl font-bold mb-6 text-gray-100">Training Library</h1><div class="grid md:grid-cols-2 gap-4">
+                    <div onclick="renderSubTab('drills')" class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg flex items-center cursor-pointer hover:border-blue-500 transition-all duration-300">
+                        <i data-lucide="footprints" class="mr-4 text-blue-400 h-8 w-8"></i><div><h3 class="font-bold text-lg text-gray-100">Drills Library</h3><p class="text-sm text-gray-400">Practice any drill, on demand.</p></div></div>
+                     <div onclick="renderSubTab('skills')" class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg flex items-center cursor-pointer hover:border-blue-500 transition-all duration-300">
+                        <i data-lucide="sparkles" class="mr-4 text-blue-400 h-8 w-8"></i><div><h3 class="font-bold text-lg text-gray-100">Skills Library</h3><p class="text-sm text-gray-400">Learn flair moves and skills.</p></div></div>
+                     <div onclick="renderSubTab('mental')" class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg flex items-center cursor-pointer hover:border-blue-500 transition-all duration-300">
+                        <i data-lucide="brain-circuit" class="mr-4 text-blue-400 h-8 w-8"></i><div><h3 class="font-bold text-lg text-gray-100">Mental Visualization</h3><p class="text-sm text-gray-400">Pre-game mental preparation.</p></div></div>
+                     <div onclick="renderSubTab('aiCoach')" class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg flex items-center cursor-pointer hover:border-blue-500 transition-all duration-300">
+                        <i data-lucide="bot" class="mr-4 text-blue-400 h-8 w-8"></i><div><h3 class="font-bold text-lg text-gray-100">✨ AI Coach</h3><p class="text-sm text-gray-400">Get personalized training advice.</p></div></div>
+                </div>`;
+        }
+        
+        function renderSubTab(subTab) {
+            const container = document.getElementById('main-content');
+            const backButton = `<button onclick="showTab('training')" class="mb-4 flex items-center text-blue-400 hover:text-blue-300 transition-colors"><i data-lucide="arrow-left" class="mr-2"></i> Back</button>`;
+            
+            if (subTab === 'drills') {
+                let drillsHtml = '';
+                for (const category in db.drills) {
+                    drillsHtml += `<h3 class="text-xl font-bold mt-6 mb-3 text-blue-300">${category}</h3>`;
+                    drillsHtml += `<div class="grid md:grid-cols-2 gap-4">${db.drills[category].map(drill => `<div onclick="startDrill('${drill.name}')" class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg cursor-pointer hover:border-blue-500 transition-all duration-300"><h4 class="font-bold text-gray-100">${drill.name}</h4><p class="text-sm text-gray-400 mt-1">${drill.description}</p></div>`).join('')}</div>`;
+                }
+                container.innerHTML = `${backButton}<h2 class="text-2xl font-bold mb-4 text-gray-100">Drills Library</h2>${drillsHtml}`;
+            } else if (subTab === 'skills') {
+                let skillsHtml = db.skills.map(skill => `<a href="${skill.url}" target="_blank" class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg flex justify-between items-center hover:border-blue-500 transition-all duration-300"><h4 class="font-bold text-gray-100">${skill.name}</h4><i data-lucide="youtube" class="text-red-500"></i></a>`).join('');
+                container.innerHTML = `${backButton}<h2 class="text-xl font-bold mb-4 text-gray-100">Skills Library</h2><div class="grid md:grid-cols-2 gap-4">${skillsHtml}</div>`;
+            } else if (subTab === 'mental') {
+                 const scripts = db.mentalScripts[state.user.position];
+                 let scriptsHtml = scripts.map(script => `<div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg"><h4 class="font-bold text-blue-300">${script.title}</h4><p class="text-sm text-gray-300 mt-2">${script.prompt}</p></div>`).join('');
+                 container.innerHTML = `${backButton}<h2 class="text-xl font-bold mb-4 text-gray-100">Mental Visualization</h2><p class="text-gray-400 mb-4">Read a prompt, close your eyes, and visualize success.</p><div class="space-y-4">${scriptsHtml}</div>`;
+            } else if (subTab === 'aiCoach') {
+                container.innerHTML = `${backButton}<h2 class="text-xl font-bold mb-4 text-gray-100">AI Coach</h2>
+                <div class="bg-gray-800/50 border border-gray-700 rounded-lg p-4 h-[calc(100vh-220px)] flex flex-col">
+                    <div class="flex-1 overflow-y-auto space-y-4 pr-2" id="aiCoach-chatbox"></div>
+                    <div class="mt-4 flex"><input id="aiCoach-input" type="text" class="flex-1 bg-gray-700 border border-gray-600 rounded-l-lg p-2 focus:outline-none focus:ring-2 focus:ring-transparent focus:border-blue-500 transition-all" placeholder="Ask for advice...">
+                    <button onclick="sendChatMessage('aiCoach')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-r-lg transition-colors"><i data-lucide="send"></i></button></div>
+                </div>`;
+                renderChat('aiCoach');
+                document.getElementById('aiCoach-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatMessage('aiCoach'); });
+            }
+            lucide.createIcons();
+        }
+
+        // --- PERFORMANCE TAB & SUB-TABS ---
+        function renderPerformanceTab(container) {
+            container.innerHTML = `<h1 class="text-3xl font-bold mb-6 text-gray-100">Off-Pitch Performance</h1><div class="grid md:grid-cols-3 gap-4">
+                    <div onclick="renderPerfSubTab('strength')" class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg flex items-center cursor-pointer hover:border-green-500 transition-all duration-300"><i data-lucide="dumbbell" class="mr-4 text-green-400 h-8 w-8"></i><div><h3 class="font-bold text-lg text-gray-100">Strength Training</h3><p class="text-sm text-gray-400">✨ AI workout generator.</p></div></div>
+                    <div onclick="renderPerfSubTab('nutrition')" class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg flex items-center cursor-pointer hover:border-green-500 transition-all duration-300"><i data-lucide="apple" class="mr-4 text-green-400 h-8 w-8"></i><div><h3 class="font-bold text-lg text-gray-100">AI Nutritionist</h3><p class="text-sm text-gray-400">✨ Personalized meal plans.</p></div></div>
+                    <div onclick="renderPerfSubTab('tactics')" class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg flex items-center cursor-pointer hover:border-green-500 transition-all duration-300"><i data-lucide="clipboard-list" class="mr-4 text-green-400 h-8 w-8"></i><div><h3 class="font-bold text-lg text-gray-100">Tactics Board</h3><p class="text-sm text-gray-400">✨ Learn formations with AI.</p></div></div>
+                </div>`;
+            lucide.createIcons();
+        }
+
+        function renderPerfSubTab(subTab) {
+            const container = document.getElementById('main-content');
+            const backButton = `<button onclick="showTab('performance')" class="mb-4 flex items-center text-blue-400 hover:text-blue-300 transition-colors"><i data-lucide="arrow-left" class="mr-2"></i> Back</button>`;
+            if (subTab === 'strength') {
+                container.innerHTML = `${backButton}<h2 class="text-xl font-bold mb-4 text-gray-100">Strength Workout Generator</h2><div id="strength-form"></div>`;
+                renderStrengthForm();
+            } else if (subTab === 'nutrition') {
+                container.innerHTML = `${backButton}<h2 class="text-xl font-bold mb-4 text-gray-100">AI Nutritionist</h2><div id="nutrition-form"></div>`;
+                renderNutritionQuestion(1);
+            } else if (subTab === 'tactics') {
+                let formationOptions = Object.keys(db.formations).map(f => `<option value="${f}">${f}</option>`).join('');
+                container.innerHTML = `${backButton}<h2 class="text-xl font-bold mb-4 text-gray-100">Tactics Board</h2>
+                <div class="grid md:grid-cols-2 gap-6 items-start">
+                    <div>
+                        <div class="mb-4"><label for="formation-select" class="block text-sm font-medium text-gray-400">Select Formation</label><select id="formation-select" onchange="selectFormation(this.value)" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md p-2">${formationOptions}</select></div>
+                        <div id="formation-display" class="mb-4"></div>
+                    </div>
+                    <div id="aiTactician-container" class="hidden"><h3 class="text-lg font-bold mb-2 text-gray-100">AI Tactician</h3><div class="bg-gray-800/50 border border-gray-700 rounded-lg p-4 h-[calc(100vh-420px)] md:h-auto md:min-h-[300px] flex flex-col"><div class="flex-1 overflow-y-auto space-y-4 pr-2" id="aiTactician-chatbox"></div><div class="mt-4 flex"><input id="aiTactician-input" type="text" class="flex-1 bg-gray-700 border border-gray-600 rounded-l-lg p-2 focus:outline-none focus:ring-2 focus:ring-transparent focus:border-blue-500 transition-all" placeholder="Ask about your role..."><button onclick="sendChatMessage('aiTactician')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-r-lg transition-colors"><i data-lucide="send"></i></button></div></div></div>
+                </div>`;
+                selectFormation(state.currentFormation);
+                document.getElementById('formation-select').value = state.currentFormation;
+                document.getElementById('aiTactician-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatMessage('aiTactician'); });
+            }
+            lucide.createIcons();
+        }
+
+        // --- CHAT FUNCTIONALITY ---
+        function renderChat(chatType) {
+            const chatbox = document.getElementById(`${chatType}-chatbox`);
+            if (!chatbox) return;
+            chatbox.innerHTML = state.chatHistories[chatType].map(msg => `<div class="flex ${msg.role === 'user' ? 'justify-end' : ''}"><div class="p-3 rounded-lg max-w-xs md:max-w-md ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}"><p>${msg.text}</p></div></div>`).join('');
+            chatbox.scrollTop = chatbox.scrollHeight;
+        }
+
+        async function sendChatMessage(chatType) {
+            const input = document.getElementById(`${chatType}-input`);
+            const message = input.value.trim();
+            if (!message) return;
+
+            state.chatHistories[chatType].push({ role: 'user', text: message });
+            renderChat(chatType);
+            input.value = '';
+
+            const chatbox = document.getElementById(`${chatType}-chatbox`);
+            chatbox.innerHTML += `<div id="thinking" class="flex"><div class="p-3 rounded-lg max-w-xs chat-bubble-ai">...</div></div>`;
+            chatbox.scrollTop = chatbox.scrollHeight;
+
+            let prompt = '';
+            if (chatType === 'aiCoach') {
+                const drillList = Object.values(db.drills).flat().map(d => d.name).join(', ');
+                prompt = `You are an encouraging, straight-talking soccer coach named Coach Pro. Talk like a real coach - be direct, motivating, and use some common soccer slang. The player's position is ${state.user.position}. Their question is: "${message}". Keep your answers concise. If relevant, you can recommend drills from this list: ${drillList}.`;
+            } else if (chatType === 'aiTactician') {
+                prompt = `You are a world-class soccer tactician. Be conversational and concise (max 3 sentences unless asked for more). The current formation is ${state.currentFormation}. The player has selected the ${state.currentTacticPosition} position. Their question is: "${message}". Answer in that context.`;
+            }
+            
+            let aiResponse = await callGemini(prompt);
+            document.getElementById('thinking').remove();
+
+            if (chatType === 'aiCoach') {
+                const allDrillNames = Object.values(db.drills).flat().map(d => d.name);
+                const drillRegex = new RegExp(`(${allDrillNames.join('|')})`, 'g');
+                aiResponse = aiResponse.replace(drillRegex, (match) => {
+                    const escapedMatch = match.replace(/'/g, "\\'");
+                    return `<button class='bg-blue-700 hover:bg-blue-800 text-white font-bold py-1 px-2 my-1 rounded-md text-sm inline-block transition-colors' onclick='startDrill(\`${escapedMatch}\`)'>${match}</button>`;
+                });
+            }
+
+            state.chatHistories[chatType].push({ role: 'ai', text: aiResponse });
+            renderChat(chatType);
+            saveState();
+        }
+
+        // --- STRENGTH & NUTRITION ---
+        function renderStrengthForm() {
+            document.getElementById('strength-form').innerHTML = `<div class="space-y-4">
+                <div><label for="focus" class="block text-sm font-medium text-gray-400">Focus</label><select id="focus" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md p-2"><option>Lower Body Power</option><option>Core Stability</option><option>Upper Body Strength</option><option>Full Body Conditioning</option></select></div>
+                <div><label for="duration" class="block text-sm font-medium text-gray-400">Duration</label><select id="duration" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md p-2"><option>15 mins</option><option>30 mins</option><option>45 mins</option></select></div>
+                <div><label for="injuries" class="block text-sm font-medium text-gray-400">Any injuries? (optional)</label><input type="text" id="injuries" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md p-2" placeholder="e.g., sore right knee"></div>
+                <button onclick="generateWorkout()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center transition-colors">✨ Generate Workout</button>
+            </div><div id="workout-plan" class="mt-6"></div>`;
+        }
+
+        async function generateWorkout() {
+            const planContainer = document.getElementById('workout-plan');
+            planContainer.innerHTML = `<div class="flex justify-center items-center p-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div></div>`;
+            const focus = document.getElementById('focus').value, duration = document.getElementById('duration').value, injuries = document.getElementById('injuries').value || 'none';
+            const prompt = `You are an expert strength coach. Generate a workout plan in JSON format for a soccer player. Focus: ${focus}, Duration: ${duration}, Injuries: ${injuries}. If injuries are mentioned, provide safe alternatives. The JSON must follow this exact structure: {"warm-up": [{"exercise": "name", "details": "brief how-to"}], "main-set": [{"exercise": "name", "sets": "X", "reps": "Y", "details": "brief how-to"}], "cool-down": [{"exercise": "name", "details": "brief how-to"}]}`;
+            
+            const responseText = await callGemini(prompt, true);
+            try {
+                const workout = JSON.parse(responseText);
+                let planHtml = `<div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg space-y-4">`;
+                const renderSection = (title, items) => {
+                    planHtml += `<div><h4 class="font-semibold text-green-300">${title}</h4><ul class="list-none text-gray-300">`;
+                    items.forEach((item, i) => {
+                        const details = JSON.stringify(item);
+                        planHtml += `<li class="mt-2 p-3 bg-gray-700 rounded-md cursor-pointer hover:bg-gray-600 transition-colors" onclick='showExerciseDetail(${details})'>${item.exercise}${item.sets ? `: ${item.sets}x${item.reps}` : ''}</li>`;
+                    });
+                    planHtml += `</ul></div>`;
+                };
+                renderSection('Warm-up', workout['warm-up']);
+                renderSection('Main Set', workout['main-set']);
+                renderSection('Cool-down', workout['cool-down']);
+                planContainer.innerHTML = planHtml + `</div>`;
+            } catch (e) {
+                planContainer.innerHTML = `<p class="text-red-400">Error generating plan. Please try again.</p>`;
+            }
+        }
+
+        function showExerciseDetail(item) {
+            const content = `<h3 class="text-xl font-bold text-center mb-4">${item.exercise}</h3>
+            ${item.sets ? `<p class="text-center text-lg font-semibold text-blue-400 mb-4">${item.sets} sets of ${item.reps}</p>` : ''}
+            <p class="text-gray-400">${item.details}</p>
+            <button onclick="closeModal()" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition-colors">Close</button>`;
+            showModal(content);
+        }
+
+        let nutritionAnswers = {};
+        function renderNutritionQuestion(step) {
+            const formContainer = document.getElementById('nutrition-form');
+            const questions = [
+                { id: 'game-time', label: 'When is your next game?', placeholder: 'e.g., Tomorrow afternoon' },
+                { id: 'travel', label: 'Any travel involved?', placeholder: 'e.g., 2-hour bus ride' },
+                { id: 'diet', label: 'Any dietary restrictions?', placeholder: 'e.g., None, vegetarian, gluten-free' }
+            ];
+            if (step > questions.length) {
+                generateMealPlan();
+                return;
+            }
+            const q = questions[step - 1];
+            formContainer.innerHTML = `<div class="space-y-4 text-center">
+                <label for="${q.id}" class="block text-lg font-medium text-gray-300">${q.label}</label>
+                <input type="text" id="${q.id}" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md p-3 text-center" placeholder="${q.placeholder}">
+                <button onclick="nextNutritionQuestion(${step})" class="w-1/2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-colors">Next</button>
+            </div>`;
+        }
+
+        function nextNutritionQuestion(step) {
+            const questions = ['game-time', 'travel', 'diet'];
+            nutritionAnswers[questions[step-1]] = document.getElementById(questions[step-1]).value;
+            renderNutritionQuestion(step + 1);
+        }
+
+        async function generateMealPlan() {
+            const formContainer = document.getElementById('nutrition-form');
+            formContainer.innerHTML = `<div class="flex justify-center items-center p-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div></div>`;
+            const prompt = `You are a sports nutritionist. Create a simple pre-game and game-day meal plan for a soccer player. Details: Game is ${nutritionAnswers['game-time']}, Travel: ${nutritionAnswers['travel']}, Diet: ${nutritionAnswers['diet']}. Present the plan in a clear, structured format with headings.`;
+            const plan = await callGemini(prompt);
+            formContainer.innerHTML = `<div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg space-y-4">${plan.replace(/\n/g, '<br>')}</div>`;
+        }
+        
+        // --- TACTICS BOARD ---
+        function selectFormation(formationName) {
+            state.currentFormation = formationName;
+            state.currentTacticPosition = null;
+            const formation = db.formations[formationName];
+            const display = document.getElementById('formation-display');
+            let playersHtml = Object.entries(formation).map(([pos, coords]) => 
+                `<div class="player-marker" style="top:${coords.t}%; left:${coords.l}%;" onclick="selectTacticPosition('${pos}')" data-pos="${pos}">${pos}</div>`
+            ).join('');
+            display.innerHTML = `<div class="pitch rounded-lg overflow-hidden"><div class="halfway-line"></div><div class="centre-circle"></div><div class="penalty-box left"></div><div class="penalty-box right"></div>${playersHtml}</div>`;
+            document.getElementById('aiTactician-container').classList.add('hidden');
+        }
+
+        function selectTacticPosition(pos) {
+            state.currentTacticPosition = pos;
+            document.querySelectorAll('.player-marker').forEach(p => p.classList.remove('selected'));
+            document.querySelector(`.player-marker[data-pos="${pos}"]`).classList.add('selected');
+            const container = document.getElementById('aiTactician-container');
+            container.classList.remove('hidden');
+            state.chatHistories.aiTactician = [{ role: 'ai', text: `Great, you've selected ${pos} in a ${state.currentFormation}. What do you want to know? Ask me about attacking runs, defensive duties, or anything else about this role.`}];
+            renderChat('aiTactician');
+        }
+
+        // --- PROFILE & MATCH LOG ---
+        function renderProfileTab(container) {
+            let achievementsHtml = Object.entries(db.achievements).map(([id, ach]) => {
+                const unlocked = state.user.unlockedAchievements.includes(id);
+                return `<div class="text-center p-4 rounded-lg ${unlocked ? 'bg-gradient-to-br from-blue-500 to-emerald-500' : 'bg-gray-800/50 border border-gray-700'}"><div class="text-4xl mb-2">${unlocked ? '🏆' : '🔒'}</div><h4 class="font-bold">${ach.name}</h4><p class="text-xs ${unlocked ? 'text-blue-200' : 'text-gray-400'}">${ach.description}</p></div>`;
+            }).join('');
+
+            let logsHtml = state.user.matchLogs.length > 0 
+                ? state.user.matchLogs.map((log, i) => `<div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg">
+                    <p class="text-sm text-gray-400">Log #${state.user.matchLogs.length - i}</p>
+                    <p><strong>Stats:</strong> ${log.minutes}' played, ${log.goals} G, ${log.assists} A</p>
+                    <p class="mt-2"><strong>Went well:</strong> ${log.good}</p>
+                    <p class="mt-1"><strong>To improve:</strong> ${log.bad}</p>
+                </div>`).join('')
+                : `<p class="text-gray-500 text-center py-4">No matches logged yet.</p>`;
+
+            container.innerHTML = `
+                <h1 class="text-3xl font-bold mb-6 text-gray-100">Your Profile</h1>
+                <div class="grid grid-cols-3 gap-4 text-center mb-6">
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg"><p class="text-sm text-gray-400">Total XP</p><p class="text-2xl font-bold">${state.user.xp}</p></div>
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg"><p class="text-sm text-gray-400">Streak</p><p class="text-2xl font-bold">🔥 ${state.user.streak}</p></div>
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg"><p class="text-sm text-gray-400">Lessons</p><p class="text-2xl font-bold">${state.user.completedDrills.length}</p></div>
+                </div>
+                <h2 class="text-xl font-bold mt-8 mb-4 text-gray-100">Achievements</h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">${achievementsHtml}</div>
+                <h2 class="text-xl font-bold mt-8 mb-4 text-gray-100">Match Log</h2>
+                <div class="space-y-4 mb-6" id="match-logs-list">${logsHtml}</div>
+                <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg">
+                    <h3 class="font-bold text-lg mb-4 text-gray-100">Log a New Match</h3>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-3 gap-2">
+                            <input type="number" id="log-minutes" placeholder="Mins" class="bg-gray-700 p-2 rounded-md border border-gray-600">
+                            <input type="number" id="log-goals" placeholder="Goals" class="bg-gray-700 p-2 rounded-md border border-gray-600">
+                            <input type="number" id="log-assists" placeholder="Assists" class="bg-gray-700 p-2 rounded-md border border-gray-600">
+                        </div>
+                        <textarea id="log-good" placeholder="What went well?" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600" rows="2"></textarea>
+                        <textarea id="log-bad" placeholder="What could be improved?" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600" rows="2"></textarea>
+                        <button onclick="saveMatchLog()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition-colors">Save Log</button>
+                    </div>
+                </div>`;
+        }
+
+        function saveMatchLog() {
+            const log = {
+                minutes: document.getElementById('log-minutes').value || 0,
+                goals: document.getElementById('log-goals').value || 0,
+                assists: document.getElementById('log-assists').value || 0,
+                good: document.getElementById('log-good').value || 'N/A',
+                bad: document.getElementById('log-bad').value || 'N/A'
+            };
+            state.user.matchLogs.unshift(log); // Add to beginning of array
+            saveState();
+            showTab('profile'); // Refresh tab
+        }
+
+    </script>
+</body>
+</html>
