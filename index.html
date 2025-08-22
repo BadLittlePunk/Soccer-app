@@ -91,12 +91,32 @@
             z-index: 10;
             box-shadow: 0 0 15px #ef4444;
         }
+        #nav-bar { transition: transform 0.3s ease-in-out; }
+        #nav-bar.hidden { transform: translateY(100%); }
+        .loader {
+            border: 4px solid #374151; /* gray-700 */
+            border-top: 4px solid #3b82f6; /* blue-500 */
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="text-gray-300">
 
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center">
+        <div class="loader"></div>
+        <p class="text-gray-400 mt-4">Loading Soccer Pro...</p>
+    </div>
+
     <!-- Main Application Container -->
-    <div id="app" class="h-screen flex flex-col bg-gray-900">
+    <div id="app" class="h-screen flex-col bg-gray-900 hidden">
 
         <!-- Position Selection Screen -->
         <div id="position-selection" class="flex flex-col items-center justify-center h-full p-8 text-center max-w-md md:max-w-2xl lg:max-w-3xl mx-auto w-full">
@@ -111,23 +131,32 @@
         </div>
 
         <!-- Main Dashboard (Hidden by default) -->
-        <div id="dashboard" class="hidden flex-1 flex-col max-w-md md:max-w-2xl lg:max-w-4xl mx-auto w-full bg-gray-900 shadow-2xl h-full">
+        <div id="dashboard" class="hidden flex-1 flex-col max-w-md md:max-w-2xl lg:max-w-4xl mx-auto w-full bg-gray-900 shadow-2xl h-full relative">
             <header class="bg-gray-900/80 backdrop-blur-sm p-4 flex justify-between items-center border-b border-gray-800 sticky top-0 z-20">
                 <div><p class="text-sm text-gray-400">Position</p><h2 id="user-position" class="text-lg font-bold text-gray-100"></h2></div>
                 <div class="text-center"><p class="text-sm text-gray-400">XP</p><h2 id="user-xp" class="text-lg font-bold text-gray-100">0</h2></div>
                 <div class="text-right"><p class="text-sm text-gray-400">Streak</p><h2 id="user-streak" class="text-lg font-bold text-gray-100">🔥 0</h2></div>
             </header>
 
-            <main id="main-content" class="flex-1 overflow-y-auto p-4 pb-24"></main>
+            <main id="main-content" class="flex-1 overflow-y-auto p-4 pb-24 transition-all duration-300"></main>
 
-            <nav class="bg-gray-900/80 backdrop-blur-sm p-2 fixed bottom-0 w-full max-w-md md:max-w-2xl lg:max-w-4xl border-t border-gray-800 z-20">
-                <div class="flex justify-around">
+            <div id="nav-bar" class="fixed bottom-0 w-full max-w-md md:max-w-2xl lg:max-w-4xl z-20">
+                <div class="bg-gray-900/80 backdrop-blur-sm p-2 border-t border-gray-800 flex justify-around items-center">
                     <button onclick="showTab('lessons')" class="tab-button tab-active flex flex-col items-center text-gray-400 w-1/4 py-1 transition-all duration-200"><i data-lucide="award"></i><span class="text-xs mt-1">Lessons</span></button>
                     <button onclick="showTab('training')" class="tab-button flex flex-col items-center text-gray-400 w-1/4 py-1 transition-all duration-200"><i data-lucide="dribbble"></i><span class="text-xs mt-1">Training</span></button>
                     <button onclick="showTab('performance')" class="tab-button flex flex-col items-center text-gray-400 w-1/4 py-1 transition-all duration-200"><i data-lucide="bar-chart-2"></i><span class="text-xs mt-1">Performance</span></button>
                     <button onclick="showTab('profile')" class="tab-button flex flex-col items-center text-gray-400 w-1/4 py-1 transition-all duration-200"><i data-lucide="user"></i><span class="text-xs mt-1">Profile</span></button>
                 </div>
-            </nav>
+            </div>
+             <button id="nav-toggle-btn" onclick="toggleNavbar()" class="absolute bottom-4 right-4 bg-gray-700/50 hover:bg-gray-700 text-gray-300 rounded-full p-2 z-30 transition-all duration-300">
+                <i data-lucide="chevrons-down" id="nav-toggle-icon"></i>
+            </button>
+            
+            <!-- Achievement Unlocked Toast -->
+            <div id="achievement-toast" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-500 to-emerald-500 text-white py-3 px-6 rounded-lg shadow-lg z-50 flex items-center transition-opacity duration-300">
+                <i data-lucide="star" class="mr-3"></i>
+                <span id="achievement-name"></span>
+            </div>
         </div>
 
         <!-- Generic Modal/Overlay -->
@@ -142,29 +171,29 @@
         lucide.createIcons();
         
         // --- GEMINI API INTEGRATION ---
-        const apiKey = ""; // IMPORTANT: Leave this empty.
+        const apiKey = ""; // This is now intentionally empty for security.
 
         async function callGemini(prompt, isJson = false) {
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-            let payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+            const functionUrl = '/.netlify/functions/gemini'; // This is the path to our middleman
+            let payload = {
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+            };
             if (isJson) {
                 payload.generationConfig = { responseMimeType: "application/json" };
             }
-
             try {
-                const response = await fetch(apiUrl, {
+                const response = await fetch(functionUrl, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                if (!response.ok) throw new Error(`API call failed: ${response.status}`);
+                if (!response.ok) throw new Error(`Function call failed`);
                 const result = await response.json();
                 if (result.candidates && result.candidates.length > 0) {
                     return result.candidates[0].content.parts[0].text;
                 }
-                throw new Error("No content received from API.");
+                throw new Error("No content received from function.");
             } catch (error) {
-                console.error("Gemini API Error:", error);
+                console.error("Serverless Function Error:", error);
                 return "Sorry, the AI is unavailable right now. Please try again later.";
             }
         }
@@ -179,7 +208,7 @@
             currentFormation: '4-4-2', currentTacticPosition: null,
             chatHistories: {
                 aiCoach: [{ role: 'ai', text: "Alright, champ! I'm Coach Pro. What's on your mind? Let's get you match-fit." }],
-                aiStrength: [], aiNutrition: [], aiTactician: []
+                aiStrength: [], aiNutrition: [], aiTactician: [], aiRecovery: []
             }
         };
 
@@ -191,27 +220,37 @@
                     { name: 'Cone Weave', id: 'dc1', description: 'Set up 5 cones in a line and weave through them using inside and outside of both feet.', duration: 180, xp: 10, positions: ['all'] },
                     { name: 'Stop-Start Sprints', id: 'dc2', description: 'Dribble at pace for 10 yards, stop the ball dead, then explode again. Repeat 10 times.', duration: 240, xp: 15, positions: ['Forward', 'Midfielder'] },
                     { name: 'Tight Space Control', id: 'dc3', description: 'In a 5x5 yard box, keep the ball moving constantly with small, quick touches. Try to use all surfaces of your feet.', duration: 300, xp: 15, positions: ['Midfielder', 'Forward'] },
+                    { name: 'Figure 8 Dribbling', id: 'dc4', description: 'Set up two cones 5 yards apart. Dribble in a figure 8 pattern around them, focusing on tight turns.', duration: 240, xp: 15, positions: ['all'] },
+                    { name: 'Ball Mastery Foundations', id: 'dc5', description: 'Perform basic ball mastery exercises: 1 minute of toe taps, 1 minute of boxes, 1 minute of V-pulls.', duration: 180, xp: 10, positions: ['all'] },
                 ],
                 'Passing & Receiving': [
                     { name: 'Wall Passing', id: 'd2', description: 'Pass the ball against a wall, alternating feet. Focus on first touch and accuracy.', duration: 180, xp: 10, positions: ['all'] },
                     { name: 'First Touch Away', id: 'pr1', description: 'Pass against a wall and take your first touch into space to your left or right, away from an imaginary defender.', duration: 240, xp: 10, positions: ['all'] },
                     { name: 'Long Passing Accuracy', id: 'm1', description: 'Practice switching the play with long passes to a target area (e.g., a cone or bag) 30-40 yards away.', duration: 300, xp: 15, positions: ['Midfielder', 'Defender'] },
                     { name: 'Receive on the Half-Turn', id: 'm2', description: 'As you receive a pass (from a wall), open your body to face forward, taking the ball with your back foot.', duration: 240, xp: 15, positions: ['Midfielder', 'Forward'] },
+                    { name: 'Driven Pass Practice', id: 'pr2', description: 'Practice hitting low, hard passes over 20 yards to a target or a wall. Focus on striking through the center of the ball.', duration: 240, xp: 15, positions: ['Defender', 'Midfielder'] },
+                    { name: 'Receiving Aerial Balls', id: 'pr3', description: 'Throw the ball high in the air and practice controlling it with your feet, thigh, and chest as it comes down.', duration: 300, xp: 15, positions: ['all'] },
                 ],
                 'Shooting & Finishing': [
                     { name: 'Shooting Practice', id: 'f1', description: 'Take 20 shots from the edge of the box. Focus on hitting the corners with power and placement.', duration: 300, xp: 10, positions: ['Forward', 'Midfielder'] },
                     { name: 'Finishing Under Pressure', id: 'f2', description: 'Receive a pass, turn, and shoot within two touches while a cone represents a defender.', duration: 300, xp: 15, positions: ['Forward'] },
                     { name: 'Volleys and Half-Volleys', id: 'sf1', description: 'Toss the ball up for yourself and strike it on the volley or just after it bounces. Focus on timing and clean contact.', duration: 240, xp: 15, positions: ['Forward', 'Midfielder'] },
+                    { name: 'First-Time Finishing', id: 'sf2', description: 'Pass the ball against a wall and shoot first-time as it comes back to you. Focus on quick adjustment and clean striking.', duration: 300, xp: 20, positions: ['Forward'] },
+                    { name: 'Chip Shot Practice', id: 'sf3', description: 'From the edge of the box, practice chipping the ball over an obstacle (like a bag) into the goal.', duration: 240, xp: 15, positions: ['Forward', 'Midfielder'] },
                 ],
                 'Defending': [
                     { name: '1v1 Defending', id: 'def1', description: 'Practice jockeying (staying low, side-on) and timing your tackles against an imaginary attacker in a channel.', duration: 240, xp: 15, positions: ['Defender', 'Midfielder'] },
                     { name: 'Heading Clearences', id: 'def2', description: 'Throw a ball in the air and practice heading it for distance and height. Attack the ball.', duration: 180, xp: 10, positions: ['Defender'] },
                     { name: 'Recovery Runs', id: 'def3', description: 'Start facing away from a cone 20 yards away. On a signal, turn and sprint back to the cone as if tracking a runner.', duration: 300, xp: 15, positions: ['Defender', 'Midfielder'] },
+                    { name: 'Blocking Crosses', id: 'def4', description: 'Stand in the box and have a friend (or a wall rebound) play balls across. Practice your positioning to block the cross.', duration: 240, xp: 15, positions: ['Defender'] },
+                    { name: 'Back-pedal and Turn', id: 'def5', description: 'Practice back-pedaling for 10 yards, then quickly opening your hips and sprinting as if tracking a run in behind.', duration: 180, xp: 10, positions: ['Defender'] },
                 ],
                 'Goalkeeping': [
                     { name: 'Handling and Footwork', id: 'g1', description: 'Practice basic handling (W-shape) and quick feet movement along the goal line.', duration: 240, xp: 10, positions: ['Goalkeeper'] },
                     { name: 'Shot Stopping', id: 'g2', description: 'Have a friend take shots from various angles or kick a ball against a wall and react to the rebound.', duration: 300, xp: 15, positions: ['Goalkeeper'] },
                     { name: 'Distribution', id: 'g3', description: 'Practice throwing (overarm and underarm) and kicking (goal kicks, punts) to specific targets downfield.', duration: 240, xp: 10, positions: ['Goalkeeper'] },
+                    { name: 'Diving Saves', id: 'g4', description: 'Start in the middle of the goal, and practice diving to low and high corners to save imaginary shots.', duration: 300, xp: 20, positions: ['Goalkeeper'] },
+                    { name: 'Dealing with Crosses', id: 'g5', description: 'Throw a ball into the air in the 6-yard box. Practice coming out, calling "Keeper!", and catching the ball at its highest point.', duration: 240, xp: 15, positions: ['Goalkeeper'] },
                 ]
             },
             skills: [
@@ -281,8 +320,14 @@
         }
 
         // --- INITIALIZATION ---
-        document.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('load', () => {
             loadState();
+            const loadingScreen = document.getElementById('loading-screen');
+            const appContainer = document.getElementById('app');
+            
+            loadingScreen.style.display = 'none';
+            appContainer.style.display = 'flex';
+
             if (state.user.position) {
                 const dashboard = document.getElementById('dashboard');
                 document.getElementById('position-selection').classList.add('hidden');
@@ -324,6 +369,27 @@
         }
 
         // --- NAVIGATION & TABS ---
+        function toggleNavbar() {
+            const navBar = document.getElementById('nav-bar');
+            const mainContent = document.getElementById('main-content');
+            const toggleBtn = document.getElementById('nav-toggle-btn');
+            const toggleIcon = document.getElementById('nav-toggle-icon');
+
+            navBar.classList.toggle('hidden');
+            if (navBar.classList.contains('hidden')) {
+                mainContent.classList.remove('pb-24');
+                mainContent.classList.add('pb-16');
+                toggleBtn.style.bottom = '1rem';
+                toggleIcon.setAttribute('data-lucide', 'chevrons-up');
+            } else {
+                mainContent.classList.remove('pb-16');
+                mainContent.classList.add('pb-24');
+                toggleBtn.style.bottom = '5rem';
+                toggleIcon.setAttribute('data-lucide', 'chevrons-down');
+            }
+            lucide.createIcons();
+        }
+
         function showTab(tabName) {
             state.currentTab = tabName;
             const mainContent = document.getElementById('main-content');
@@ -500,10 +566,11 @@
 
         // --- PERFORMANCE TAB & SUB-TABS ---
         function renderPerformanceTab(container) {
-            container.innerHTML = `<h1 class="text-3xl font-bold mb-6 text-gray-100">Off-Pitch Performance</h1><div class="grid md:grid-cols-3 gap-4">
+            container.innerHTML = `<h1 class="text-3xl font-bold mb-6 text-gray-100">Off-Pitch Performance</h1><div class="grid md:grid-cols-2 gap-4">
                     <div onclick="renderPerfSubTab('strength')" class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg flex items-center cursor-pointer hover:border-green-500 transition-all duration-300"><i data-lucide="dumbbell" class="mr-4 text-green-400 h-8 w-8"></i><div><h3 class="font-bold text-lg text-gray-100">Strength Training</h3><p class="text-sm text-gray-400">✨ AI workout generator.</p></div></div>
                     <div onclick="renderPerfSubTab('nutrition')" class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg flex items-center cursor-pointer hover:border-green-500 transition-all duration-300"><i data-lucide="apple" class="mr-4 text-green-400 h-8 w-8"></i><div><h3 class="font-bold text-lg text-gray-100">AI Nutritionist</h3><p class="text-sm text-gray-400">✨ Personalized meal plans.</p></div></div>
                     <div onclick="renderPerfSubTab('tactics')" class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg flex items-center cursor-pointer hover:border-green-500 transition-all duration-300"><i data-lucide="clipboard-list" class="mr-4 text-green-400 h-8 w-8"></i><div><h3 class="font-bold text-lg text-gray-100">Tactics Board</h3><p class="text-sm text-gray-400">✨ Learn formations with AI.</p></div></div>
+                    <div onclick="renderPerfSubTab('recovery')" class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg flex items-center cursor-pointer hover:border-green-500 transition-all duration-300"><i data-lucide="heart-pulse" class="mr-4 text-green-400 h-8 w-8"></i><div><h3 class="font-bold text-lg text-gray-100">Recovery Zone</h3><p class="text-sm text-gray-400">✨ AI-powered recovery advice.</p></div></div>
                 </div>`;
             lucide.createIcons();
         }
@@ -530,6 +597,9 @@
                 selectFormation(state.currentFormation);
                 document.getElementById('formation-select').value = state.currentFormation;
                 document.getElementById('aiTactician-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatMessage('aiTactician'); });
+            } else if (subTab === 'recovery') {
+                container.innerHTML = `${backButton}<h2 class="text-xl font-bold mb-4 text-gray-100">AI Recovery Advisor</h2><div id="recovery-form"></div>`;
+                renderRecoveryQuestion(1);
             }
             lucide.createIcons();
         }
@@ -558,9 +628,11 @@
             let prompt = '';
             if (chatType === 'aiCoach') {
                 const drillList = Object.values(db.drills).flat().map(d => d.name).join(', ');
-                prompt = `You are an encouraging, straight-talking soccer coach named Coach Pro. Talk like a real coach - be direct, motivating, and use some common soccer slang. The player's position is ${state.user.position}. Their question is: "${message}". Keep your answers concise. If relevant, you can recommend drills from this list: ${drillList}.`;
+                prompt = `You are an encouraging, straight-talking soccer coach named Coach Pro. Your response must be very short and direct (2-3 sentences max). Do not use any markdown formatting like asterisks for bolding. The player's position is ${state.user.position}. Their question is: "${message}". If relevant, you can recommend drills from this list: ${drillList}.`;
             } else if (chatType === 'aiTactician') {
                 prompt = `You are a world-class soccer tactician. Be conversational and concise (max 3 sentences unless asked for more). The current formation is ${state.currentFormation}. The player has selected the ${state.currentTacticPosition} position. Their question is: "${message}". Answer in that context.`;
+            } else if (chatType === 'aiRecovery') {
+                prompt = `You are a sports recovery specialist. The user has received a recovery plan and has a follow-up question: "${message}". Provide a concise, helpful, and safe answer.`;
             }
             
             let aiResponse = await callGemini(prompt);
@@ -571,7 +643,7 @@
                 const drillRegex = new RegExp(`(${allDrillNames.join('|')})`, 'g');
                 aiResponse = aiResponse.replace(drillRegex, (match) => {
                     const escapedMatch = match.replace(/'/g, "\\'");
-                    return `<button class='bg-blue-700 hover:bg-blue-800 text-white font-bold py-1 px-2 my-1 rounded-md text-sm inline-block transition-colors' onclick='startDrill(\`${escapedMatch}\`)'>${match}</button>`;
+                    return `<div class='inline-block border border-blue-500 rounded-lg p-1 my-1'><button class='bg-blue-700 hover:bg-blue-800 text-white font-bold py-1 px-2 rounded-md text-sm' onclick='startDrill(\`${escapedMatch}\`)'>${match}</button></div>`;
                 });
             }
 
@@ -580,7 +652,7 @@
             saveState();
         }
 
-        // --- STRENGTH & NUTRITION ---
+        // --- STRENGTH & NUTRITION & RECOVERY ---
         function renderStrengthForm() {
             document.getElementById('strength-form').innerHTML = `<div class="space-y-4">
                 <div><label for="focus" class="block text-sm font-medium text-gray-400">Focus</label><select id="focus" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md p-2"><option>Lower Body Power</option><option>Core Stability</option><option>Upper Body Strength</option><option>Full Body Conditioning</option></select></div>
@@ -658,6 +730,79 @@
             const plan = await callGemini(prompt);
             formContainer.innerHTML = `<div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg space-y-4">${plan.replace(/\n/g, '<br>')}</div>`;
         }
+
+        let recoveryAnswers = {};
+        function renderRecoveryQuestion(step) {
+            const formContainer = document.getElementById('recovery-form');
+            const questions = [
+                { id: 'session-type', label: 'Describe the last session', type: 'select', options: ['Intense Match (75+ mins)', 'Hard Training (60+ mins)', 'Moderate Training', 'Light Skill Session'] },
+                { id: 'fatigue-level', label: 'How tired do you feel?', type: 'select', options: ['1 (Fresh)', '2 (Slightly Tired)', '3 (Noticeably Fatigued)', '4 (Very Tired)', '5 (Exhausted)'] },
+                { id: 'sore-muscles', label: 'Any specific sore muscles?', type: 'text', placeholder: 'e.g., Hamstrings, Quads, Calves' }
+            ];
+            if (step > questions.length) {
+                generateRecoveryPlan();
+                return;
+            }
+            const q = questions[step - 1];
+            let inputHtml = '';
+            if (q.type === 'select') {
+                inputHtml = `<select id="${q.id}" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md p-3 text-center">${q.options.map(opt => `<option>${opt}</option>`).join('')}</select>`;
+            } else {
+                inputHtml = `<input type="text" id="${q.id}" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md p-3 text-center" placeholder="${q.placeholder}">`;
+            }
+            formContainer.innerHTML = `<div class="space-y-4 text-center">
+                <label for="${q.id}" class="block text-lg font-medium text-gray-300">${q.label}</label>
+                ${inputHtml}
+                <button onclick="nextRecoveryQuestion(${step})" class="w-1/2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-colors">Next</button>
+            </div>`;
+        }
+
+        function nextRecoveryQuestion(step) {
+            const questions = ['session-type', 'fatigue-level', 'sore-muscles'];
+            recoveryAnswers[questions[step-1]] = document.getElementById(questions[step-1]).value;
+            renderRecoveryQuestion(step + 1);
+        }
+
+        async function generateRecoveryPlan() {
+            const formContainer = document.getElementById('recovery-form');
+            formContainer.innerHTML = `<div class="flex justify-center items-center p-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div></div>`;
+            const prompt = `You are a sports recovery specialist. Generate a recovery plan in JSON format. Details: Session was "${recoveryAnswers['session-type']}", fatigue level is "${recoveryAnswers['fatigue-level']}", sore muscles are "${recoveryAnswers['sore-muscles'] || 'none'}". The JSON must follow this exact structure: {"nutrition": [{"title": "name", "details": "brief how-to"}], "movement": [{"title": "name", "details": "brief how-to"}], "stretching": [{"title": "name", "details": "brief how-to"}]}`;
+            
+            const responseText = await callGemini(prompt, true);
+            try {
+                const plan = JSON.parse(responseText);
+                let planHtml = `<div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg space-y-4">`;
+                const renderSection = (title, items) => {
+                    planHtml += `<div><h4 class="font-semibold text-green-300">${title}</h4><ul class="list-none text-gray-300">`;
+                    items.forEach(item => {
+                        const details = JSON.stringify(item);
+                        planHtml += `<li class="mt-2 p-3 bg-gray-700 rounded-md cursor-pointer hover:bg-gray-600 transition-colors" onclick='showRecoveryDetail(${details})'>${item.title}</li>`;
+                    });
+                    planHtml += `</ul></div>`;
+                };
+                renderSection('Nutrition', plan.nutrition);
+                renderSection('Light Movement', plan.movement);
+                renderSection('Stretching', plan.stretching);
+                planHtml += `</div>`;
+                
+                planHtml += `<div class="mt-6"><h3 class="text-lg font-bold mb-2 text-gray-100">Further Questions?</h3><div class="bg-gray-800/50 border border-gray-700 rounded-lg p-4 h-auto flex flex-col"><div class="flex-1 overflow-y-auto space-y-4 pr-2" id="aiRecovery-chatbox"></div><div class="mt-4 flex"><input id="aiRecovery-input" type="text" class="flex-1 bg-gray-700 border border-gray-600 rounded-l-lg p-2 focus:outline-none focus:ring-2 focus:ring-transparent focus:border-blue-500 transition-all" placeholder="Ask about recovery..."><button onclick="sendChatMessage('aiRecovery')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-r-lg transition-colors"><i data-lucide="send"></i></button></div></div></div>`;
+                formContainer.innerHTML = planHtml;
+                document.getElementById('aiRecovery-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatMessage('aiRecovery'); });
+                lucide.createIcons();
+
+            } catch (e) {
+                formContainer.innerHTML = `<p class="text-red-400">Error generating plan. Please try again.</p>`;
+                console.error("Error parsing recovery JSON:", e, "Response was:", responseText);
+            }
+        }
+        
+        function showRecoveryDetail(item) {
+            const content = `<h3 class="text-xl font-bold text-center mb-4">${item.title}</h3>
+            <p class="text-gray-400">${item.details}</p>
+            <button onclick="closeModal()" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition-colors">Close</button>`;
+            showModal(content);
+        }
+
         
         // --- TACTICS BOARD ---
         function selectFormation(formationName) {
@@ -740,3 +885,4 @@
     </script>
 </body>
 </html>
+
